@@ -33,12 +33,12 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
       const [users, groups] = await Promise.all([
         searchWithCache(
           query,
-          (q, signal) => searchUsers(q, signal),
+          (q) => searchUsers(q),
           `users-${query}`
         ),
         searchWithCache(
           query,
-          (q, signal) => searchGroups(q, signal),
+          (q) => searchGroups(q),
           `groups-${query}`
         )
       ]);

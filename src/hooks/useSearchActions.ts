@@ -7,11 +7,11 @@ export const useSearchActions = (
   users: User[],
   groups: Group[]
 ) => {
-  const searchUsers = async (query: string, signal?: AbortSignal): Promise<User[]> => {
+  const searchUsers = async (query: string): Promise<User[]> => {
     if (!query.trim()) return [];
 
     try {
-      const apiResponse = await apiService.search({ query }, signal);
+      const apiResponse = await apiService.search({ query });
 
       if (apiResponse.data) {
         const users = apiResponse.data
@@ -45,11 +45,11 @@ export const useSearchActions = (
     );
   };
 
-  const searchGroups = async (query: string, signal?: AbortSignal): Promise<Group[]> => {
+  const searchGroups = async (query: string): Promise<Group[]> => {
     if (!query.trim()) return [];
 
     try {
-      const apiResponse = await apiService.search({ query }, signal);
+      const apiResponse = await apiService.search({ query });
 
       if (apiResponse.data) {
         const groups = apiResponse.data
@@ -79,11 +79,11 @@ export const useSearchActions = (
     );
   };
 
-  const globalSearch = async (query: string, signal?: AbortSignal): Promise<any[]> => {
+  const globalSearch = async (query: string): Promise<any[]> => {
     if (!query.trim()) return [];
 
     try {
-      const apiResponse = await apiService.search({ query }, signal);
+      const apiResponse = await apiService.search({ query });
       return apiResponse.data || [];
     } catch (error) {
       if (error.name === 'AbortError') {

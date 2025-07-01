@@ -51,10 +51,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       socketService.onMessage((message) => {
         const newMessage: Message = {
-          id: message.id,
-          senderId: message.fromUserId,
-          content: message.message,
-          timestamp: new Date(message.timestamp),
+          id: message._id,
+          senderId: message.sender,
+          content: message.text,
+          timestamp: new Date(message.createdAt),
           type: 'text'
         };
 
@@ -63,7 +63,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? prev.find(c => 
                 c.type === 'direct' && 
                 c.participants.includes(currentUser.id) && 
-                c.participants.includes(message.fromUserId)
+                c.participants.includes(message.sender)
               )?.id
             : message.groupId;
 
