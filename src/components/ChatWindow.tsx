@@ -45,6 +45,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
     setLoadingMessages(true);
     try {
       if (chat.type === 'direct' || chat.type === 'random') {
+        // Use the actual message _id for pagination
         await openOneToOneChat(chatId, lastMessageId, 20);
       }
     } catch (error) {
@@ -57,6 +58,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   const loadMoreMessages = () => {
     if (chat && chat.messages.length > 0) {
       const oldestMessage = chat.messages[0];
+      // Use the actual message ID, not the generated one
       loadMessages(oldestMessage.id);
     }
   };

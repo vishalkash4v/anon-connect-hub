@@ -1,4 +1,3 @@
-
 import { apiService } from '@/services/apiService';
 import { socketService } from '@/services/socketService';
 import { User, Chat, Message } from '@/types/user';
@@ -33,8 +32,8 @@ export const useChatActions = (
             unreadCount: 0,
             updatedAt: new Date(groupChat.createdAt),
             lastMessage: groupChat.lastMessage ? {
-              id: 'temp',
-              senderId: 'unknown',
+              id: groupChat.lastMessage._id,
+              senderId: groupChat.lastMessage.sender,
               content: groupChat.lastMessage.text,
               timestamp: new Date(groupChat.lastMessage.createdAt),
               type: 'text'
@@ -62,15 +61,15 @@ export const useChatActions = (
             }
 
             const chat: Chat = {
-              id: `chat_${currentUser.id}_${oneToOneChat.user._id}`,
+              id: oneToOneChat._id, // Use the actual chat _id from API
               type: 'direct',
               participants: [currentUser.id, oneToOneChat.user._id],
               messages: [],
               unreadCount: 0,
               updatedAt: new Date(oneToOneChat.lastMessage.createdAt),
               lastMessage: {
-                id: 'temp',
-                senderId: 'unknown',
+                id: oneToOneChat.lastMessage._id, // Use the actual message _id from API
+                senderId: oneToOneChat.lastMessage.sender,
                 content: oneToOneChat.lastMessage.text,
                 timestamp: new Date(oneToOneChat.lastMessage.createdAt),
                 type: 'text'
@@ -210,10 +209,17 @@ export const useChatActions = (
     if (!currentUser) return [];
 
     try {
-      const response = await apiService.openOneToOneChat({
-        chatId,
+      console.log('Opening one-to-one chat with:', {
+        chatId, // This should be the actual _id from my-chats API
         userId: currentUser.id,
-        lastMessageId,
+        lastMessageId, // This should be the actual lastMessage._id from my-chats API
+        limit: limit || 20
+      });
+
+      const response = await apiService.openOneToOneChat({
+        chatId, // Using the actual chat _id
+        userId: currentUser.id,
+        lastMessageId, // Using the actual message _id
         limit: limit || 20
       });
 
