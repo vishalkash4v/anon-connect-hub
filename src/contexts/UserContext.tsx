@@ -31,7 +31,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setNewGroups, 
     setPopularGroups
   );
-  const chatActions = useChatActions(currentUser, chats, setChats, users);
+  const chatActions = useChatActions(currentUser, chats, setChats, users, setUsers);
   const searchActions = useSearchActions(currentUser, users, groups);
 
   useEffect(() => {

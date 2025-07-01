@@ -1,4 +1,3 @@
-
 import { apiService } from '@/services/apiService';
 import { socketService } from '@/services/socketService';
 import { User, Chat, Message } from '@/types/user';
@@ -8,7 +7,8 @@ export const useChatActions = (
   currentUser: User | null,
   chats: Chat[],
   setChats: (chats: Chat[]) => void,
-  users: User[]
+  users: User[],
+  setUsers: (users: User[]) => void
 ) => {
   const startDirectChat = (userId: string): string => {
     if (!currentUser) return '';
@@ -45,11 +45,44 @@ export const useChatActions = (
     try {
       const response = await apiService.openRandomChat({ userId: currentUser.id });
       
-      if (response.chatId) {
+      if (response.status && response.data) {
+        const { matchedUser } = response.data;
+        
+        // Add matched user to users list if not already present
+        const existingUser = users.find(u => u.id === matchedUser._id);
+        if (!existingUser) {
+          const newUser: User = {
+            id: matchedUser._id,
+            name: matchedUser.name,
+            phone: matchedUser.phone,
+            email: matchedUser.email,
+            username: matchedUser.username,
+            isAnonymous: matchedUser.isAnonymous,
+            lastSeen: new Date(matchedUser.createdAt),
+            bio: matchedUser.bio,
+            avatar: matchedUser.avatar
+          };
+          
+          const updatedUsers = [...users, newUser];
+          setUsers(updatedUsers);
+          saveToStorage.users(updatedUsers);
+        }
+
+        // Create or find existing chat
+        const existingChat = chats.find(chat => 
+          chat.type === 'random' && 
+          chat.participants.includes(currentUser.id) && 
+          chat.participants.includes(matchedUser._id)
+        );
+
+        if (existingChat) {
+          return existingChat.id;
+        }
+
         const newChat: Chat = {
-          id: response.chatId,
+          id: `random_${currentUser.id}_${matchedUser._id}`,
           type: 'random',
-          participants: [currentUser.id, response.otherUserId],
+          participants: [currentUser.id, matchedUser._id],
           messages: [],
           unreadCount: 0,
           updatedAt: new Date()
@@ -59,21 +92,13 @@ export const useChatActions = (
         setChats(updatedChats);
         saveToStorage.chats(updatedChats);
 
-        return response.chatId;
+        return newChat.id;
       }
     } catch (error) {
       console.error('Error starting random chat:', error);
     }
 
-    const availableUsers = users.filter(user => 
-      user.id !== currentUser.id && 
-      !chats.some(chat => chat.participants.includes(user.id))
-    );
-
-    if (availableUsers.length === 0) return null;
-
-    const randomUser = availableUsers[Math.floor(Math.random() * availableUsers.length)];
-    return startDirectChat(randomUser.id);
+    return null;
   };
 
   const openGroupChat = async (groupId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
@@ -147,7 +172,7 @@ export const useChatActions = (
       type: 'text'
     };
 
-    if (chat.type === 'direct') {
+    if (chat.type === 'direct' || chat.type === 'random') {
       const otherUserId = chat.participants.find(id => id !== currentUser.id);
       if (otherUserId) {
         socketService.sendMessage({

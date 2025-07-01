@@ -2,13 +2,13 @@
 import { io, Socket } from 'socket.io-client';
 
 interface SocketMessage {
-  id: string;
-  fromUserId: string;
-  toUserId?: string;
+  _id: string;
+  sender: string;
+  receiverId?: string;
   groupId?: string;
-  message: string;
+  text: string;
   type: 'private' | 'group';
-  timestamp: string;
+  createdAt: string;
 }
 
 interface TypingData {
@@ -18,8 +18,8 @@ interface TypingData {
 
 class SocketService {
   private socket: Socket | null = null;
-  private messageCallbacks: ((message: SocketMessage) => void)[] = [];
-  private groupMessageCallbacks: Map<string, ((message: SocketMessage) => void)[]> = new Map();
+  private messageCallbacks: ((message: any) => void)[] = [];
+  private groupMessageCallbacks: Map<string, ((message: any) => void)[]> = new Map();
   private userOnlineCallbacks: ((userId: string) => void)[] = [];
   private userOfflineCallbacks: ((userId: string) => void)[] = [];
   private typingCallbacks: ((fromUserId: string) => void)[] = [];
@@ -53,10 +53,22 @@ class SocketService {
       console.error('Socket connection error:', error);
     });
 
-    // Listen for private messages
+    // Listen for private messages - matching Node.js format
     this.socket.on('receive-message', (message: SocketMessage) => {
       console.log('Received message:', message);
-      this.messageCallbacks.forEach(callback => callback(message));
+      
+      // Transform message to match frontend format
+      const transformedMessage = {
+        id: message._id,
+        fromUserId: message.sender,
+        toUserId: message.receiverId,
+        groupId: message.groupId,
+        message: message.text,
+        type: message.type,
+        timestamp: message.createdAt
+      };
+      
+      this.messageCallbacks.forEach(callback => callback(transformedMessage));
     });
 
     // Listen for user online status
@@ -116,11 +128,22 @@ class SocketService {
     }
   }
 
-  subscribeToGroupMessages(groupId: string, callback: (message: SocketMessage) => void) {
+  subscribeToGroupMessages(groupId: string, callback: (message: any) => void) {
     const eventName = `group-${groupId}-new-message`;
     
     if (this.socket) {
-      this.socket.on(eventName, callback);
+      this.socket.on(eventName, (message: SocketMessage) => {
+        // Transform message to match frontend format
+        const transformedMessage = {
+          id: message._id,
+          fromUserId: message.sender,
+          groupId: message.groupId,
+          message: message.text,
+          type: message.type,
+          timestamp: message.createdAt
+        };
+        callback(transformedMessage);
+      });
     }
 
     // Store callback for cleanup
