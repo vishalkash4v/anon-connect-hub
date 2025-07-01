@@ -1,3 +1,4 @@
+
 const BASE_URL = 'https://rcapis.best-smm.in/apis/v1';
 
 export interface CreateProfileRequest {
@@ -34,6 +35,10 @@ export interface JoinGroupRequest {
   userId: string;
 }
 
+export interface GetMyChatsRequest {
+  userId: string;
+}
+
 export interface OpenGroupChatRequest {
   groupId: string;
   lastMessageId?: string;
@@ -41,8 +46,8 @@ export interface OpenGroupChatRequest {
 }
 
 export interface OpenOneToOneChatRequest {
+  chatId: string;
   userId: string;
-  otherUserId: string;
   lastMessageId?: string;
   limit?: number;
 }
@@ -107,6 +112,10 @@ class ApiService {
 
   async joinGroup(data: JoinGroupRequest) {
     return this.makeRequest('/join-group', data);
+  }
+
+  async getMyChats(data: GetMyChatsRequest) {
+    return this.makeRequest('/my-chats', data);
   }
 
   async openGroupChat(data: OpenGroupChatRequest) {

@@ -1,3 +1,4 @@
+
 import { apiService } from '@/services/apiService';
 import { socketService } from '@/services/socketService';
 import { User, Chat, Message } from '@/types/user';
@@ -10,6 +11,85 @@ export const useChatActions = (
   users: User[],
   setUsers: (users: User[]) => void
 ) => {
+  const loadMyChats = async (): Promise<void> => {
+    if (!currentUser) return;
+
+    try {
+      const response = await apiService.getMyChats({ userId: currentUser.id });
+      
+      if (response.status && response.data) {
+        const { groupChats, oneToOneChats } = response.data;
+        const newChats: Chat[] = [];
+        const newUsers: User[] = [...users];
+
+        // Process group chats
+        groupChats.forEach((groupChat: any) => {
+          const chat: Chat = {
+            id: groupChat._id,
+            type: 'group',
+            participants: groupChat.members,
+            groupId: groupChat._id,
+            messages: [],
+            unreadCount: 0,
+            updatedAt: new Date(groupChat.createdAt),
+            lastMessage: groupChat.lastMessage ? {
+              id: 'temp',
+              senderId: 'unknown',
+              content: groupChat.lastMessage.text,
+              timestamp: new Date(groupChat.lastMessage.createdAt),
+              type: 'text'
+            } : undefined
+          };
+          newChats.push(chat);
+        });
+
+        // Process one-to-one chats
+        oneToOneChats.forEach((oneToOneChat: any) => {
+          if (oneToOneChat.user) {
+            // Add user to users list if not already present
+            const existingUser = newUsers.find(u => u.id === oneToOneChat.user._id);
+            if (!existingUser) {
+              const user: User = {
+                id: oneToOneChat.user._id,
+                name: oneToOneChat.user.name,
+                phone: oneToOneChat.user.phone,
+                email: oneToOneChat.user.email,
+                username: oneToOneChat.user.username,
+                isAnonymous: !oneToOneChat.user.name,
+                lastSeen: new Date()
+              };
+              newUsers.push(user);
+            }
+
+            const chat: Chat = {
+              id: `chat_${currentUser.id}_${oneToOneChat.user._id}`,
+              type: 'direct',
+              participants: [currentUser.id, oneToOneChat.user._id],
+              messages: [],
+              unreadCount: 0,
+              updatedAt: new Date(oneToOneChat.lastMessage.createdAt),
+              lastMessage: {
+                id: 'temp',
+                senderId: 'unknown',
+                content: oneToOneChat.lastMessage.text,
+                timestamp: new Date(oneToOneChat.lastMessage.createdAt),
+                type: 'text'
+              }
+            };
+            newChats.push(chat);
+          }
+        });
+
+        setChats(newChats);
+        setUsers(newUsers);
+        saveToStorage.chats(newChats);
+        saveToStorage.users(newUsers);
+      }
+    } catch (error) {
+      console.error('Error loading my chats:', error);
+    }
+  };
+
   const startDirectChat = (userId: string): string => {
     if (!currentUser) return '';
 
@@ -126,35 +206,46 @@ export const useChatActions = (
     return chat?.messages || [];
   };
 
-  const openOneToOneChat = async (otherUserId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
+  const openOneToOneChat = async (chatId: string, lastMessageId?: string, limit?: number): Promise<Message[]> => {
     if (!currentUser) return [];
 
     try {
       const response = await apiService.openOneToOneChat({
+        chatId,
         userId: currentUser.id,
-        otherUserId,
         lastMessageId,
         limit: limit || 20
       });
 
-      if (response.messages) {
-        return response.messages.map((msg: any) => ({
-          id: msg.id,
-          senderId: msg.senderId,
-          content: msg.content,
-          timestamp: new Date(msg.timestamp),
-          type: msg.type || 'text'
+      if (response.status && response.data && response.data.messages) {
+        const messages = response.data.messages.map((msg: any) => ({
+          id: msg._id,
+          senderId: msg.sender._id,
+          content: msg.text,
+          timestamp: new Date(msg.createdAt),
+          type: 'text'
         }));
+
+        // Update the chat with loaded messages
+        const updatedChats = chats.map(chat => {
+          if (chat.id === chatId) {
+            return {
+              ...chat,
+              messages: lastMessageId ? [...messages, ...chat.messages] : messages
+            };
+          }
+          return chat;
+        });
+        setChats(updatedChats);
+        saveToStorage.chats(updatedChats);
+
+        return messages;
       }
     } catch (error) {
       console.error('Error opening one-to-one chat:', error);
     }
 
-    const chat = chats.find(c => 
-      c.type === 'direct' && 
-      c.participants.includes(currentUser.id) && 
-      c.participants.includes(otherUserId)
-    );
+    const chat = chats.find(c => c.id === chatId);
     return chat?.messages || [];
   };
 
@@ -224,6 +315,7 @@ export const useChatActions = (
   };
 
   return {
+    loadMyChats,
     startDirectChat,
     startRandomChat,
     openGroupChat,

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useUser } from '@/contexts/UserContext';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, MoreHorizontal } from 'lucide-react';
 
 interface ChatWindowProps {
   chatId: string;
@@ -14,8 +14,9 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   const [message, setMessage] = useState('');
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { chats, users, currentUser, sendMessage, sendTyping, sendStopTyping, onlineUsers, typingUsers } = useUser();
+  const { chats, users, currentUser, sendMessage, sendTyping, sendStopTyping, onlineUsers, typingUsers, openOneToOneChat } = useUser();
 
   const chat = chats.find(c => c.id === chatId);
   const otherUserId = chat?.participants.find(id => id !== currentUser?.id);
@@ -30,6 +31,35 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   useEffect(() => {
     scrollToBottom();
   }, [chat?.messages]);
+
+  useEffect(() => {
+    // Load initial messages when chat opens
+    if (chat && chat.messages.length === 0) {
+      loadMessages();
+    }
+  }, [chat?.id]);
+
+  const loadMessages = async (lastMessageId?: string) => {
+    if (!chat || loadingMessages) return;
+
+    setLoadingMessages(true);
+    try {
+      if (chat.type === 'direct' || chat.type === 'random') {
+        await openOneToOneChat(chatId, lastMessageId, 20);
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const loadMoreMessages = () => {
+    if (chat && chat.messages.length > 0) {
+      const oldestMessage = chat.messages[0];
+      loadMessages(oldestMessage.id);
+    }
+  };
 
   const handleSendMessage = () => {
     if (message.trim()) {
@@ -100,7 +130,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           <div className="relative">
             <Avatar>
               <AvatarFallback>
-                {otherUser?.name?.charAt(0)?.toUpperCase() || 'A'}
+                {otherUser?.name?.charAt(0)?.toUpperCase() || otherUser?.username?.charAt(0)?.toUpperCase() || 'A'}
               </AvatarFallback>
             </Avatar>
             {isOtherUserOnline && (
@@ -109,7 +139,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           </div>
           <div>
             <h2 className="font-semibold">
-              {otherUser?.name || 'Anonymous User'}
+              {otherUser?.name || otherUser?.username || 'Anonymous User'}
             </h2>
             <p className="text-sm text-gray-500">
               {isOtherUserOnline ? 'Online' : 'Offline'}
@@ -120,6 +150,27 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Load More Button */}
+        {chat.messages.length > 0 && (
+          <div className="text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadMoreMessages}
+              disabled={loadingMessages}
+            >
+              {loadingMessages ? (
+                <MoreHorizontal className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <MoreHorizontal className="w-4 h-4 mr-2" />
+                  Load More Messages
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+
         {chat.messages.length === 0 ? (
           <div className="text-center text-gray-500 py-8">
             <p>No messages yet. Start the conversation!</p>
@@ -137,7 +188,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
                 <div className={`max-w-xs lg:max-w-md`}>
                   {!isOwn && (
                     <p className="text-xs text-gray-500 mb-1 px-3">
-                      {sender?.name || 'Anonymous'}
+                      {sender?.name || sender?.username || 'Anonymous'}
                     </p>
                   )}
                   <div
@@ -170,7 +221,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           <div className="flex justify-start">
             <div className="max-w-xs lg:max-w-md">
               <p className="text-xs text-gray-500 mb-1 px-3">
-                {otherUser?.name || 'Anonymous'}
+                {otherUser?.name || otherUser?.username || 'Anonymous'}
               </p>
               <div className="bg-white border shadow-sm rounded-lg px-4 py-2">
                 <p className="text-gray-500 italic">typing...</p>

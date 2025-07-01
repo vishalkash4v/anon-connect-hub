@@ -57,10 +57,11 @@ export interface UserContextType {
   getProfile: (userId: string) => Promise<User | null>;
   createGroup: (groupData: { name: string; description?: string }) => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
+  loadMyChats: () => Promise<void>;
   startDirectChat: (userId: string) => string;
   startRandomChat: () => Promise<string | null>;
   openGroupChat: (groupId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
-  openOneToOneChat: (otherUserId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
+  openOneToOneChat: (chatId: string, lastMessageId?: string, limit?: number) => Promise<Message[]>;
   sendMessage: (chatId: string, content: string) => void;
   sendTyping: (chatId: string, otherUserId: string) => void;
   sendStopTyping: (chatId: string, otherUserId: string) => void;
