@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser } from '@/contexts/UserContext';
+import { useOptimizedSearch } from '@/hooks/useOptimizedSearch';
 import { ArrowLeft, Search, MessageSquare, Users } from 'lucide-react';
 
 interface UserSearchProps {
@@ -17,8 +18,8 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [userResults, setUserResults] = useState<any[]>([]);
   const [groupResults, setGroupResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const { searchUsers, searchGroups, startDirectChat, joinGroup } = useUser();
+  const { isSearching, searchWithCache } = useOptimizedSearch();
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
@@ -28,18 +29,26 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
       return;
     }
 
-    setLoading(true);
     try {
       const [users, groups] = await Promise.all([
-        searchUsers(query),
-        searchGroups(query)
+        searchWithCache(
+          query,
+          (q, signal) => searchUsers(q, signal),
+          `users-${query}`
+        ),
+        searchWithCache(
+          query,
+          (q, signal) => searchGroups(q, signal),
+          `groups-${query}`
+        )
       ]);
+      
       setUserResults(users);
       setGroupResults(groups);
     } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setLoading(false);
+      if (error.name !== 'AbortError') {
+        console.error('Search error:', error);
+      }
     }
   };
 
@@ -51,7 +60,6 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
   const handleJoinGroup = async (groupId: string) => {
     try {
       await joinGroup(groupId);
-      // After joining, you could start a group chat here
     } catch (error) {
       console.error('Error joining group:', error);
     }
@@ -91,7 +99,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
                 <CardTitle>Users</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
+                {isSearching ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-gray-500 mt-2">Searching...</p>
@@ -151,7 +159,7 @@ const UserSearch: React.FC<UserSearchProps> = ({ onBack, onStartChat }) => {
                 <CardTitle>Groups</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
+                {isSearching ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-gray-500 mt-2">Searching...</p>

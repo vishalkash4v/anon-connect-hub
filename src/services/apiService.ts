@@ -1,4 +1,3 @@
-
 const BASE_URL = 'https://rcapis.best-smm.in/apis/v1';
 
 export interface CreateProfileRequest {
@@ -59,7 +58,7 @@ export interface SearchRequest {
 }
 
 class ApiService {
-  private async makeRequest(endpoint: string, data: Record<string, any>) {
+  private async makeRequest(endpoint: string, data: Record<string, any>, signal?: AbortSignal) {
     const formData = new FormData();
     
     Object.keys(data).forEach(key => {
@@ -72,6 +71,7 @@ class ApiService {
       const response = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'POST',
         body: formData,
+        signal
       });
 
       if (!response.ok) {
@@ -121,8 +121,8 @@ class ApiService {
     return this.makeRequest('/open-random-chat', data);
   }
 
-  async search(data: SearchRequest) {
-    return this.makeRequest('/search', data);
+  async search(data: SearchRequest, signal?: AbortSignal) {
+    return this.makeRequest('/search', data, signal);
   }
 
   async getGroupsOverview() {
