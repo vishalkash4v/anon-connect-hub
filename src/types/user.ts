@@ -6,9 +6,9 @@ export interface User {
   email?: string;
   username?: string;
   isAnonymous: boolean;
-  avatar?: string;
-  bio?: string;
   lastSeen: Date;
+  bio?: string;
+  avatar?: string;
 }
 
 export interface Group {
@@ -19,7 +19,7 @@ export interface Group {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
-  avatar?: string;
+  isPrivate?: boolean;
 }
 
 export interface Message {
@@ -27,7 +27,7 @@ export interface Message {
   senderId: string;
   content: string;
   timestamp: Date;
-  type: 'text' | 'image';
+  type: 'text' | 'image' | 'file';
 }
 
 export interface Chat {
@@ -36,27 +36,48 @@ export interface Chat {
   participants: string[];
   groupId?: string;
   messages: Message[];
-  lastMessage?: Message;
   unreadCount: number;
   updatedAt: Date;
+  lastMessage?: Message;
 }
 
 export interface UserContextType {
+  // User state
   currentUser: User | null;
   users: User[];
+  
+  // Group state
   groups: Group[];
+  
+  // Chat state
   chats: Chat[];
+  
+  // UI state
   loading: boolean;
   onlineUsers: string[];
   typingUsers: Map<string, string>;
+  
+  // Group categories
   trendingGroups: Group[];
   newGroups: Group[];
   popularGroups: Group[];
-  createUser: (userData: Partial<User>) => Promise<void>;
-  updateUser: (userData: Partial<User>) => Promise<void>;
-  getProfile: (userId: string) => Promise<User | null>;
-  createGroup: (groupData: { name: string; description?: string }) => Promise<void>;
+  
+  // Current chat tracking for notifications
+  currentChatUserId: string | null;
+  setCurrentChatUserId: (userId: string | null) => void;
+  
+  // User actions
+  registerUser: (userData: Partial<User>) => Promise<void>;
+  loginUser: (userData: { phone?: string; email?: string; password?: string }) => Promise<void>;
+  updateProfile: (userData: Partial<User>) => Promise<void>;
+  
+  // Group actions
+  createGroup: (groupData: { name: string; description?: string; isPrivate?: boolean }) => Promise<void>;
   joinGroup: (groupId: string) => Promise<void>;
+  leaveGroup: (groupId: string) => Promise<void>;
+  loadGroupsOverview: () => Promise<void>;
+  
+  // Chat actions
   loadMyChats: () => Promise<void>;
   startDirectChat: (userId: string) => string;
   startRandomChat: () => Promise<string | null>;
@@ -65,8 +86,9 @@ export interface UserContextType {
   sendMessage: (chatId: string, content: string) => void;
   sendTyping: (chatId: string, otherUserId: string) => void;
   sendStopTyping: (chatId: string, otherUserId: string) => void;
+  
+  // Search actions
   searchUsers: (query: string) => Promise<User[]>;
   searchGroups: (query: string) => Promise<Group[]>;
   globalSearch: (query: string) => Promise<any[]>;
-  loadGroupsOverview: () => Promise<void>;
 }

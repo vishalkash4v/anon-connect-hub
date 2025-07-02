@@ -1,8 +1,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { socketService } from '@/services/socketService';
+import { notificationService } from '@/services/notificationService';
 import { User, Group, Chat, Message, UserContextType } from '@/types/user';
-import { loadFromStorage } from '@/utils/localStorage';
+import { loadFromStorage, saveToStorage } from '@/utils/localStorage';
 import { useUserActions } from '@/hooks/useUserActions';
 import { useGroupActions } from '@/hooks/useGroupActions';
 import { useChatActions } from '@/hooks/useChatActions';
@@ -20,6 +21,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [trendingGroups, setTrendingGroups] = useState<Group[]>([]);
   const [newGroups, setNewGroups] = useState<Group[]>([]);
   const [popularGroups, setPopularGroups] = useState<Group[]>([]);
+  const [currentChatUserId, setCurrentChatUserId] = useState<string | null>(null);
 
   // Initialize hooks
   const userActions = useUserActions(currentUser, setCurrentUser, users, setUsers);
@@ -50,6 +52,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }, 1000);
 
       socketService.onMessage((message) => {
+        console.log('Received message in context:', message);
+        
         const newMessage: Message = {
           id: message._id,
           senderId: message.sender,
@@ -57,6 +61,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           timestamp: new Date(message.createdAt),
           type: 'text'
         };
+
+        // Find sender info for notifications
+        const sender = users.find(u => u.id === message.sender);
+        const senderName = sender?.name || sender?.username || 'Anonymous User';
 
         setChats(prev => {
           const chatId = message.type === 'private' 
@@ -67,7 +75,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
               )?.id
             : message.groupId;
 
-          if (!chatId) return prev;
+          if (!chatId) {
+            console.log('Chat not found for message:', message);
+            return prev;
+          }
 
           const updated = prev.map(chat => 
             chat.id === chatId
@@ -79,7 +90,19 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }
               : chat
           );
-          localStorage.setItem('chats', JSON.stringify(updated));
+          
+          saveToStorage.chats(updated);
+          
+          // Show notification if user is not currently in this chat
+          if (message.sender !== currentUser.id) {
+            notificationService.showMessageNotification(
+              senderName,
+              message.text,
+              currentChatUserId,
+              message.sender
+            );
+          }
+          
           return updated;
         });
       });
@@ -114,25 +137,30 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         socketService.disconnect();
       }
     };
-  }, [currentUser]);
+  }, [currentUser, users, currentChatUserId]);
+
+  // Enhanced context value with current chat tracking
+  const contextValue = {
+    currentUser,
+    users,
+    groups,
+    chats,
+    loading: userActions.loading || groupActions.loading,
+    onlineUsers,
+    typingUsers,
+    trendingGroups,
+    newGroups,
+    popularGroups,
+    currentChatUserId,
+    setCurrentChatUserId,
+    ...userActions,
+    ...groupActions,
+    ...chatActions,
+    ...searchActions
+  };
 
   return (
-    <UserContext.Provider value={{
-      currentUser,
-      users,
-      groups,
-      chats,
-      loading: userActions.loading || groupActions.loading,
-      onlineUsers,
-      typingUsers,
-      trendingGroups,
-      newGroups,
-      popularGroups,
-      ...userActions,
-      ...groupActions,
-      ...chatActions,
-      ...searchActions
-    }}>
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );

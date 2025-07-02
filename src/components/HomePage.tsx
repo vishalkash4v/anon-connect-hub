@@ -36,12 +36,14 @@ const HomePage: React.FC<HomePageProps> = ({
   const [showRandomChat, setShowRandomChat] = useState(false);
   const [activeTab, setActiveTab] = useState('trending');
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const { 
     currentUser, 
     groups, 
     users, 
     startRandomChat, 
+    startDirectChat,
     searchUsers,
     trendingGroups,
     newGroups,
@@ -54,15 +56,21 @@ const HomePage: React.FC<HomePageProps> = ({
     loadGroupsOverview();
   }, [loadGroupsOverview]);
 
-  // Handle search with proper async handling
+  // Improved search with proper debouncing
   useEffect(() => {
-    const handleSearch = async () => {
-      if (!searchQuery.trim()) {
-        setSearchResults([]);
-        return;
-      }
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
 
-      setSearchLoading(true);
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    setSearchLoading(true);
+    
+    const timeout = setTimeout(async () => {
       try {
         const results = await searchUsers(searchQuery);
         setSearchResults(results);
@@ -72,11 +80,20 @@ const HomePage: React.FC<HomePageProps> = ({
       } finally {
         setSearchLoading(false);
       }
-    };
+    }, 500); // 500ms debounce
 
-    const debounceTimer = setTimeout(handleSearch, 300);
-    return () => clearTimeout(debounceTimer);
+    setSearchTimeout(timeout);
+
+    return () => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+    };
   }, [searchQuery, searchUsers]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  };
 
   const handleRandomChat = async () => {
     setShowRandomChat(true);
@@ -102,6 +119,11 @@ const HomePage: React.FC<HomePageProps> = ({
     setShowJoinGroup(true);
   };
 
+  const handleStartDirectChat = (userId: string) => {
+    const chatId = startDirectChat(userId);
+    onStartChat(chatId);
+  };
+
   const onlineUsers = users.filter(user => user.id !== currentUser?.id).slice(0, 4);
 
   return (
@@ -121,20 +143,25 @@ const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
           
-          {/* Search Section */}
+          {/* Enhanced Search Section */}
           <div className="flex items-center space-x-3">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
-                className="pl-10 bg-white/90 border-gray-200 focus:ring-2 focus:ring-blue-500 transition-all duration-300"
-                placeholder="Search groups, users, tags..."
+                className="pl-12 pr-4 py-3 text-base bg-white/90 border-2 border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 rounded-xl shadow-sm transition-all duration-300"
+                placeholder="🔍 Discover groups, users, and conversations..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
               />
+              {searchLoading && (
+                <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                </div>
+              )}
             </div>
             <Button 
               onClick={() => setShowCreateGroup(true)}
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200"
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 transform hover:scale-105 transition-all duration-200 px-6 py-3"
             >
               <Plus className="w-4 h-4 mr-2" />
               Create Group
@@ -142,7 +169,7 @@ const HomePage: React.FC<HomePageProps> = ({
             <Button 
               onClick={handleRandomChat}
               variant="outline"
-              className="border-orange-300 text-orange-600 hover:bg-orange-50 transform hover:scale-105 transition-all duration-200"
+              className="border-orange-300 text-orange-600 hover:bg-orange-50 transform hover:scale-105 transition-all duration-200 px-6 py-3"
             >
               <Shuffle className="w-4 h-4 mr-2" />
               Random Chat
@@ -157,30 +184,38 @@ const HomePage: React.FC<HomePageProps> = ({
           <div className="mb-8 animate-fade-in">
             <Card className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
               <CardHeader>
-                <CardTitle className="text-lg">Search Results</CardTitle>
+                <CardTitle className="text-lg flex items-center">
+                  <Search className="w-5 h-5 mr-2 text-blue-500" />
+                  Search Results for "{searchQuery}"
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {searchLoading ? (
-                  <div className="text-center py-4">
+                  <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                     <p className="text-gray-500 mt-2">Searching...</p>
                   </div>
                 ) : searchResults.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">No results found for "{searchQuery}"</p>
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No results found for "{searchQuery}"</p>
+                    <p className="text-sm text-gray-400 mt-1">Try different keywords or browse trending groups below</p>
+                  </div>
                 ) : (
                   <div className="space-y-3">
                     {searchResults.map((user) => (
-                      <div key={user.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors">
+                      <div key={user.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-gray-50 transition-colors">
                         <div className="flex items-center space-x-3">
                           <Avatar>
-                            <AvatarFallback>{user.name?.charAt(0)?.toUpperCase() || 'A'}</AvatarFallback>
+                            <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                              {user.name?.charAt(0)?.toUpperCase() || 'A'}
+                            </AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{user.name || 'Anonymous User'}</p>
                             <p className="text-sm text-gray-500">{user.isAnonymous ? 'Anonymous' : 'Profile User'}</p>
                           </div>
                         </div>
-                        <Button size="sm" onClick={() => onShowSearch()}>
+                        <Button size="sm" onClick={() => handleStartDirectChat(user.id)}>
                           <MessageSquare className="w-4 h-4 mr-2" />
                           Chat
                         </Button>
@@ -360,7 +395,11 @@ const HomePage: React.FC<HomePageProps> = ({
                       <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
                       <span className="text-sm text-green-600 font-medium">Online</span>
                     </div>
-                    <Button size="sm" className="w-full" onClick={() => onShowSearch()}>
+                    <Button 
+                      size="sm" 
+                      className="w-full" 
+                      onClick={() => handleStartDirectChat(user.id)}
+                    >
                       <MessageSquare className="w-4 h-4 mr-2" />
                       Start Chat
                     </Button>

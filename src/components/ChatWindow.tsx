@@ -15,6 +15,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   const [message, setMessage] = useState('');
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chats, users, currentUser, sendMessage, sendTyping, sendStopTyping, onlineUsers, typingUsers, openOneToOneChat } = useUser();
 
@@ -32,12 +33,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
     scrollToBottom();
   }, [chat?.messages]);
 
+  // Load messages when chat opens
   useEffect(() => {
-    // Load initial messages when chat opens
-    if (chat && chat.messages.length === 0) {
-      loadMessages();
-    }
-  }, [chat?.id]);
+    const loadInitialMessages = async () => {
+      if (chat && initialLoad) {
+        setInitialLoad(false);
+        setLoadingMessages(true);
+        
+        try {
+          console.log('Loading initial messages for chat:', chatId);
+          await openOneToOneChat(chatId, undefined, 20);
+        } catch (error) {
+          console.error('Error loading initial messages:', error);
+        } finally {
+          setLoadingMessages(false);
+        }
+      }
+    };
+
+    loadInitialMessages();
+  }, [chat?.id, initialLoad]);
 
   const loadMessages = async (lastMessageId?: string) => {
     if (!chat || loadingMessages) return;
@@ -45,7 +60,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
     setLoadingMessages(true);
     try {
       if (chat.type === 'direct' || chat.type === 'random') {
-        // Use the actual message _id for pagination
+        console.log('Loading more messages with lastMessageId:', lastMessageId);
         await openOneToOneChat(chatId, lastMessageId, 20);
       }
     } catch (error) {
@@ -58,7 +73,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
   const loadMoreMessages = () => {
     if (chat && chat.messages.length > 0) {
       const oldestMessage = chat.messages[0];
-      // Use the actual message ID, not the generated one
+      console.log('Loading more messages, oldest message ID:', oldestMessage.id);
       loadMessages(oldestMessage.id);
     }
   };
@@ -113,6 +128,43 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
     };
   }, [typingTimeout]);
 
+  // Show loading state for initial load
+  if (initialLoad && loadingMessages) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* Header */}
+        <div className="bg-white border-b p-4">
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div className="relative">
+              <Avatar>
+                <AvatarFallback>
+                  {otherUser?.name?.charAt(0)?.toUpperCase() || otherUser?.username?.charAt(0)?.toUpperCase() || 'A'}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+            <div>
+              <h2 className="font-semibold">
+                {otherUser?.name || otherUser?.username || 'Anonymous User'}
+              </h2>
+              <p className="text-sm text-gray-500">Loading...</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Loading Messages */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-500">Loading messages...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!chat) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -162,7 +214,10 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
               disabled={loadingMessages}
             >
               {loadingMessages ? (
-                <MoreHorizontal className="w-4 h-4 animate-spin" />
+                <>
+                  <MoreHorizontal className="w-4 h-4 animate-spin mr-2" />
+                  Loading...
+                </>
               ) : (
                 <>
                   <MoreHorizontal className="w-4 h-4 mr-2" />
@@ -173,7 +228,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ chatId, onBack }) => {
           </div>
         )}
 
-        {chat.messages.length === 0 ? (
+        {chat.messages.length === 0 && !loadingMessages ? (
           <div className="text-center text-gray-500 py-8">
             <p>No messages yet. Start the conversation!</p>
           </div>

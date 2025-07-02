@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '@/contexts/UserContext';
 import HomePage from './HomePage';
 import ChatWindow from './ChatWindow';
@@ -14,22 +14,43 @@ const ChatHome: React.FC = () => {
   const [activeView, setActiveView] = useState<'home' | 'chat' | 'search' | 'profile' | 'chats' | 'profile-edit'>('home');
   const [activeChatId, setActiveChatId] = useState<string>('');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const { setCurrentChatUserId, chats } = useUser();
 
   const handleStartChat = (chatId: string) => {
     setActiveChatId(chatId);
     setActiveView('chat');
+    
+    // Set current chat user for notification management
+    const chat = chats.find(c => c.id === chatId);
+    if (chat && chat.type === 'direct') {
+      const otherUserId = chat.participants.find(id => id);
+      setCurrentChatUserId(otherUserId || null);
+    }
+  };
+
+  const handleBackFromChat = () => {
+    setActiveView('home');
+    setActiveChatId('');
+    setCurrentChatUserId(null); // Clear current chat when leaving
   };
 
   const handleShowCreateGroup = () => {
     setShowCreateGroup(true);
   };
 
+  // Clear current chat user when leaving chat view
+  useEffect(() => {
+    if (activeView !== 'chat') {
+      setCurrentChatUserId(null);
+    }
+  }, [activeView, setCurrentChatUserId]);
+
   if (activeView === 'chat' && activeChatId) {
     return (
       <div className="min-h-screen pb-20">
         <ChatWindow 
           chatId={activeChatId} 
-          onBack={() => setActiveView('home')}
+          onBack={handleBackFromChat}
         />
         <BottomNavigation
           activeView="home"
